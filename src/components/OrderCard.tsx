@@ -48,13 +48,16 @@ const OrderCard = (data: any) => {
             </div>
           ))}
         </div>
-        <div className="w-full flex justify-end gap-2">
-          {(orderData.event.event_category).toLocaleLowerCase() == 'wedding' ? (
-            <Link to={'/wedding/update/' + orderData.unique_id } className='bg-primary px-4 py-2 text-xs border border-primary rounded-md mt-6 flex gap-2 items-center'><CiBoxList/> Detail</Link>
-          ) : (
-            <Link to={'/ricebox/update/' + orderData.unique_id } className='bg-primary px-4 py-2 text-xs border border-primary rounded-md mt-6 flex gap-2 items-center'><CiBoxList/> Detail</Link>
-          )}
-          <button onClick={() => setOpenDelete(!openDelete)} className='bg-white px-4 py-2 text-xs border border-primary rounded-md mt-6 flex gap-2 items-center'><CiTrash/> Delete</button>
+        <div className="w-full flex flex-col mt-6">
+          <p className='text-gray-600 text-xs text-end mb-2'>dibuat pada {dateFormating(orderData.created_at)}</p>
+          <div className="w-full flex justify-end items-center gap-2">
+            {(orderData.event.event_category).toLocaleLowerCase() == 'wedding' ? (
+              <Link to={'/wedding/update/' + orderData.unique_id } className='bg-primary px-4 py-2 text-xs border border-primary rounded-md flex gap-2 items-center'><CiBoxList/> Detail</Link>
+            ) : (
+              <Link to={'/ricebox/update/' + orderData.unique_id } className='bg-primary px-4 py-2 text-xs border border-primary rounded-md flex gap-2 items-center'><CiBoxList/> Detail</Link>
+            )}
+            <button onClick={() => setOpenDelete(!openDelete)} className='bg-white px-4 py-2 text-xs border border-primary rounded-md flex gap-2 items-center'><CiTrash/> Delete</button>
+          </div>
         </div>  
         {
           openDelete && (

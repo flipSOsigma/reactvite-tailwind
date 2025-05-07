@@ -7,6 +7,8 @@ import { MdChevronRight } from 'react-icons/md';
 import { CiCirclePlus } from 'react-icons/ci';
 import { HiEquals } from 'react-icons/hi2';
 import { Link, useNavigate } from 'react-router-dom';
+import { generateCateringPDF } from '../lib/pdfGenerator';
+import PDFPopUp from '../popup/PDFPopUp';
 
 type Portion = {
   id: string;
@@ -116,6 +118,46 @@ export default function CreateOrderWedding() {
   });
 
   const [approve, setApprove] = useState(false);
+  const [validation, setValidation] = useState({ isValid: false, message: '' });
+
+  const validateOrder = (order: OrderData): { isValid: boolean; message: string } => {
+    // Condition 3: Check all required fields are filled
+    if (
+      !order.event_name ||
+      !order.customer.customer_name ||
+      !order.customer.customer_phone ||
+      !order.event.event_location ||
+      !order.event.event_building
+    ) {
+      return { isValid: false, message: 'Please fill all required fields' };
+    }
+
+    const buffetSection = order.sections.find(s => s.section_name === 'Buffet');
+    const menuSection = order.sections.find(s => s.section_name === 'Menu Pondokan');
+    const dessertSection = order.sections.find(s => s.section_name === 'Dessert');
+
+    const buffetPortion = buffetSection?.section_portion || 0;
+    const menuPortion = menuSection?.section_portion || 0;
+    const dessertPortion = dessertSection?.section_portion || 0;
+
+    // Condition 1: (buffet + menu) >= visitor * 3
+    if (buffetPortion + menuPortion < order.visitor * 3) {
+      return {
+        isValid: false,
+        message: `Total Buffet + Menu portions (${buffetPortion + menuPortion}) must be at least ${order.visitor * 3} (visitors × 3)`
+      };
+    }
+
+    // Condition 2: (buffet + dessert) >= visitor
+    if (buffetPortion + dessertPortion < order.visitor) {
+      return {
+        isValid: false,
+        message: `Total Buffet + Dessert portions (${buffetPortion + dessertPortion}) must be at least ${order.visitor} (number of visitors)`
+      };
+    }
+
+    return { isValid: true, message: '' };
+  };
 
   const createEmptyPortion = useCallback((sectionId: string, index: number): Portion => {
     return {
@@ -129,27 +171,31 @@ export default function CreateOrderWedding() {
   }, []);
 
   const handleSectionUpdate = useCallback((sectionId: string, updatedPortions: Portion[]) => {
-    setOrder(prev => ({
-      ...prev,
-      sections: prev.sections.map(section => 
-        section.id === sectionId 
-          ? { 
-              ...section, 
-              portions: updatedPortions,
-              section_portion: updatedPortions.reduce((sum, portion) => sum + portion.portion_count, 0),
-              section_total_price: updatedPortions.reduce((sum, portion) => sum + portion.portion_total_price, 0)
-            } 
-          : section
-      ),
-      price: prev.sections.reduce((sum, section) => 
-        sum + (section.id === sectionId 
-          ? updatedPortions.reduce((s, p) => s + p.portion_total_price, 0)
-          : section.section_total_price), 0),
-      portion: prev.sections.reduce((sum, section) => 
-        sum + (section.id === sectionId 
-          ? updatedPortions.reduce((s, p) => s + p.portion_count, 0)
-          : section.section_portion), 0)
-    }));
+    setOrder(prev => {
+      const updatedOrder = {
+        ...prev,
+        sections: prev.sections.map(section => 
+          section.id === sectionId 
+            ? { 
+                ...section, 
+                portions: updatedPortions,
+                section_portion: updatedPortions.reduce((sum, portion) => sum + portion.portion_count, 0),
+                section_total_price: updatedPortions.reduce((sum, portion) => sum + portion.portion_total_price, 0)
+              } 
+            : section
+        ),
+        price: prev.sections.reduce((sum, section) => 
+          sum + (section.id === sectionId 
+            ? updatedPortions.reduce((s, p) => s + p.portion_total_price, 0)
+            : section.section_total_price), 0),
+        portion: prev.sections.reduce((sum, section) => 
+          sum + (section.id === sectionId 
+            ? updatedPortions.reduce((s, p) => s + p.portion_count, 0)
+            : section.section_portion), 0)
+      };
+      setValidation(validateOrder(updatedOrder));
+      return updatedOrder;
+    });
   }, []);
 
   const handlePortionChange = useCallback((
@@ -159,14 +205,18 @@ export default function CreateOrderWedding() {
     value: string | number
   ) => {
     if (field === 'section_note') {
-      setOrder(prev => ({
-        ...prev,
-        sections: prev.sections.map(section => 
-          section.id === sectionId 
-            ? { ...section, section_note: value as string }
-            : section
-        )
-      }));
+      setOrder(prev => {
+        const updated = {
+          ...prev,
+          sections: prev.sections.map(section => 
+            section.id === sectionId 
+              ? { ...section, section_note: value as string }
+              : section
+          )
+        };
+        setValidation(validateOrder(updated));
+        return updated;
+      });
       return;
     }
 
@@ -198,12 +248,15 @@ export default function CreateOrderWedding() {
         return section;
       });
 
-      return {
+      const updatedOrder = {
         ...prev,
         sections: updatedSections,
         price: updatedSections.reduce((sum, section) => sum + section.section_total_price, 0),
         portion: updatedSections.reduce((sum, section) => sum + section.section_portion, 0)
       };
+      
+      setValidation(validateOrder(updatedOrder));
+      return updatedOrder;
     });
   }, []);
 
@@ -224,10 +277,12 @@ export default function CreateOrderWedding() {
           : s
       );
 
-      return {
+      const updatedOrder = {
         ...prev,
         sections: updatedSections
       };
+      setValidation(validateOrder(updatedOrder));
+      return updatedOrder;
     });
   }, [createEmptyPortion]);
 
@@ -249,18 +304,38 @@ export default function CreateOrderWedding() {
           : s
       );
 
-      return {
+      const updatedOrder = {
         ...prev,
         sections: updatedSections,
         price: updatedSections.reduce((sum, s) => sum + s.section_total_price, 0),
         portion: updatedSections.reduce((sum, s) => sum + s.section_portion, 0)
       };
+      
+      setValidation(validateOrder(updatedOrder));
+      return updatedOrder;
     });
   }, []);
 
+  
+  const handleGeneratePDF = async (order: any) => {
+    try {
+      await generateCateringPDF(order);
+    } catch (error: any) {
+      alert('Failed to generate PDF: ' + error.message);
+    }
+  };
+
+  const [openPDF, setOpenPDF] = useState(false);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!approve) return;
+    
+    const validationResult = validateOrder(order);
+    setValidation(validationResult);
+    
+    if (!validationResult.isValid || !approve) {
+      return;
+    }
 
     const payload = {
       ...order,
@@ -283,15 +358,24 @@ export default function CreateOrderWedding() {
         },
         body: JSON.stringify(payload)
       });
+      // handleGeneratePDF(order)
 
       if (!response.ok) throw new Error('Failed to create order');
-      
+      setOpenPDF(true);
       const result = await response.json();
-      console.log('Order created:', result);
-      navigate('/dashboard');
+      // navigate('/dashboard');
     } catch (error) {
       console.error('Error creating order:', error);
     }
+  };
+
+  const formatCurrency = (value: number): string => {
+    return value.toLocaleString('id-ID');
+  };
+
+  const parseCurrency = (formattedValue: string): number => {
+    const numericString = formattedValue.replace(/\D/g, '');
+    return numericString ? parseInt(numericString, 10) : 0;
   };
 
   const FoodSection = useCallback(({ 
@@ -322,12 +406,27 @@ export default function CreateOrderWedding() {
               onChange={(e) => onPortionChange(section.id, portion.id, 'portion_name', e.target.value)}
             />
             <input
+              type='text'
+              placeholder='Harga /porsi'
+              className='border px-4 py-3 text-sm border-slate-300 rounded'
+              value={formatCurrency(portion.portion_price)}
+              onChange={(e) => {
+                const numericValue = parseCurrency(e.target.value);
+                onPortionChange(section.id, portion.id, 'portion_price', numericValue);
+              }}
+              onBlur={(e) => {
+                // Format the value on blur
+                const numericValue = parseCurrency(e.target.value);
+                onPortionChange(section.id, portion.id, 'portion_price', numericValue);
+              }}
+            />
+            {/* <input
               type='number'
               placeholder='Harga /porsi'
               className='border px-4 py-3 text-sm border-slate-300 rounded'
               value={portion.portion_price}
               onChange={(e) => onPortionChange(section.id, portion.id, 'portion_price', Number(e.target.value))}
-            />
+            /> */}
             <input
               type='number'
               placeholder='Jumlah porsi'
@@ -540,11 +639,18 @@ export default function CreateOrderWedding() {
             <input
               type='number'
               value={order.invitation || ''}
-              onChange={(e) => setOrder({
-                ...order,
-                invitation: Number(e.target.value) || 0,
-                visitor: (Number(e.target.value) || 0) * 2
-              })}
+              onChange={(e) => {
+                const newVisitor = (Number(e.target.value) || 0) * 2;
+                setOrder(prev => {
+                  const updated = {
+                    ...prev,
+                    invitation: Number(e.target.value) || 0,
+                    visitor: newVisitor
+                  };
+                  setValidation(validateOrder(updated));
+                  return updated;
+                });
+              }}
               className='flex-1 border px-4 py-3 text-sm border-slate-300 rounded'
               placeholder='Invitations'
               required
@@ -564,10 +670,17 @@ export default function CreateOrderWedding() {
             <input
               type='number'
               value={order.visitor - (order.invitation * 2)}
-              onChange={(e) => setOrder({
-                ...order,
-                visitor: (order.invitation * 2) + (Number(e.target.value) || 0)
-              })}
+              onChange={(e) => {
+                const newVisitor = (order.invitation * 2) + (Number(e.target.value) || 0);
+                setOrder(prev => {
+                  const updated = {
+                    ...prev,
+                    visitor: newVisitor
+                  };
+                  setValidation(validateOrder(updated));
+                  return updated;
+                });
+              }}
               className='flex-1 border px-4 py-3 text-sm border-slate-300 rounded'
               placeholder='Additional people'
             />
@@ -614,6 +727,12 @@ export default function CreateOrderWedding() {
             onChange={(e) => setOrder({...order, note: e.target.value})}
           />
 
+          {!validation.isValid && validation.message && (
+            <div className="mt-4 p-3 bg-red-100 text-red-700 rounded text-sm">
+              {validation.message}
+            </div>
+          )}
+
           <div className="flex items-center gap-2 mt-4">
             <input
               type="checkbox"
@@ -626,14 +745,8 @@ export default function CreateOrderWedding() {
           
           <div className='flex justify-end gap-2 mt-6'>
             <button
-              type='button'
-              className='text-xs bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 duration-300'
-            >
-              Generate PDF
-            </button>
-            <button
               type='submit'
-              disabled={!approve}
+              disabled={!approve || !validation.isValid}
               className='text-xs bg-primary disabled:bg-slate-400 text-white px-4 py-2 rounded hover:bg-yellow-600 duration-300'
             >
               Buat Pesanan
@@ -641,6 +754,7 @@ export default function CreateOrderWedding() {
           </div>
         </div>
       </form>
+      {openPDF && <PDFPopUp order={order} close={() => setOpenPDF(false)} />}
     </div>
   );
 }

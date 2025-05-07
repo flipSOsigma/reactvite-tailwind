@@ -3,7 +3,7 @@ import Navbar from '../components/Navbar'
 import OrderCard from '../components/OrderCard'
 import { useLocation } from 'react-router-dom'
 
-const Dashboard = () => {
+const Ricebox = () => {
   const [orderData, setOrderData] = useState<any[]>([])
   const [filteredData, setFilteredData] = useState<any[]>([])
   const [searchTerm, setSearchTerm] = useState('')
@@ -15,7 +15,7 @@ const Dashboard = () => {
     const fetchData = async () => {
       try {
         setIsLoading(true)
-        const response = await fetch(`${routeApi}/orders`, {
+        const response = await fetch(`${routeApi}/order/Ricebox`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json'
@@ -34,7 +34,6 @@ const Dashboard = () => {
     fetchData()
   }, [routeApi])
 
-  // Filter data whenever searchTerm changes
   useEffect(() => {
     if (!searchTerm.trim()) {
       setFilteredData(orderData)
@@ -100,4 +99,4 @@ const Dashboard = () => {
   )
 }
 
-export default Dashboard
+export default Ricebox

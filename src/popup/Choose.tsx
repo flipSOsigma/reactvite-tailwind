@@ -17,7 +17,7 @@ const Choose = ({close}: {close: () => void}) => {
         <p className='w-full text-center'>silahkan pilih salah satu dari pilihan di bawah</p>
         <div className="flex items-center w-full mt-4">
           <Link to={'/wedding/create/'} className="bg-primary text-center flex-1 ">wedding</Link>
-          <button className="bg-primary flex-1">nasi kotak</button>
+          <Link to={'/ricebox/create/'} className="bg-primary text-center flex-1">nasi kotak</Link>
         </div>
       </div>
     </div>
